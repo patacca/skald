@@ -46,3 +46,6 @@ _deps
 
 # Build dir
 build/
+
+# Vscode
+.vscode/
