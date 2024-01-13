@@ -1,3 +1,4 @@
 CompileFlags:
   Add:
     - "-Ibinaryninjaapi"
+    - "-std=c++17"
