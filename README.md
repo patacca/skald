@@ -1,6 +1,11 @@
 # skald
 Binary Ninja plugin to recover RTTI vtables information from C++ binaries
 
+## Dependencies
+
+- C++17 compatible compiler
+- cmake >= 3.24
+
 ## How to build
 
 Clone the repository and initialize the submodules.
