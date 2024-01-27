@@ -11,6 +11,7 @@
 
 namespace skald {
 
+using BinaryNinja::BaseStructure;
 using BinaryNinja::QualifiedName;
 using BinaryNinja::Ref;
 using BinaryNinja::Structure;
@@ -160,6 +161,21 @@ Ref<Type> Skald::definePbaseClassType() {
     return _view->GetTypeByName(typeName);
 }
 
+Ref<Type> Skald::definePointerToMemberClassType() {
+    QualifiedName typeName = QualifiedName("__pointer_to_member_type_info");
+    const auto type = _view->GetTypeByName(typeName);
+    if (!!type) return type;  // Define it once
+
+    StructureBuilder typeInfoBuilder;
+    typeInfoBuilder.SetBaseStructures({BaseStructure(this->definePbaseClassType(), 0)});
+    typeInfoBuilder.AddMember(Type::PointerType(_view->GetDefaultArchitecture(), Type::VoidType()),
+                              "__context");
+    Ref<Structure> typeInfoStruct = typeInfoBuilder.Finalize();
+    _view->DefineUserType(typeName, Type::StructureType(typeInfoStruct));
+
+    return _view->GetTypeByName(typeName);
+}
+
 void Skald::parseRTTI(unsigned long address, const std::string& symbolName) {
     // Mangled names of type_info derived classes
     using namespace std::literals;
@@ -209,8 +225,13 @@ void Skald::parseRTTI(unsigned long address, const std::string& symbolName) {
             _view->DefineUserDataVariable(address, type->WithConfidence(0xff));
             break;
         }
+        case POINTER_TO_MEMBER_TYPE_INFO: {
+            const auto type = this->definePointerToMemberClassType();
+            _view->DefineUserDataVariable(address, type->WithConfidence(0xff));
+            break;
+        }
         default:
-            BinaryNinja::LogWarn("std::type_info derived class at address %p is not implemented.",
+            BinaryNinja::LogDebug("Unsupported std::type_info derived class at address %p.",
                                  (void*)address);
             this->typeinfoClasses.pop_back();  // Remove the class from the list
             break;

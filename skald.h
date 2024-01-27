@@ -16,6 +16,7 @@ enum TypeInfo : uint32_t {
     FUNDAMENTAL_TYPE_INFO,
     ARRAY_TYPE_INFO,
     ENUM_TYPE_INFO,
+    POINTER_TO_MEMBER_TYPE_INFO,
     UNSUPPORTED,
 };
 
@@ -44,6 +45,7 @@ class Skald {
     BinaryNinja::Ref<BinaryNinja::Type> defineVmiClassType(uint32_t base_count);
     BinaryNinja::Ref<BinaryNinja::Type> defineSiClassType();
     BinaryNinja::Ref<BinaryNinja::Type> definePbaseClassType();
+    BinaryNinja::Ref<BinaryNinja::Type> definePointerToMemberClassType();
 };
 
 }  // namespace skald
