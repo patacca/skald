@@ -1,8 +1,13 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <vector>
 
 #include "binaryninjaapi.h"
+#include "inheritance_graph.h"
+#include "type_accessor.h"
 
 namespace skald {
 
@@ -22,24 +27,20 @@ enum TypeInfo : uint32_t {
 
 class Skald {
    public:
-    // Delete copy constructor and copy assignment
-    Skald(const Skald&) = delete;
-    Skald& operator=(const Skald&) = delete;
-
-    static Skald& get_instance() {
-        static Skald singleton;
-        return singleton;
-    };
-
+    Skald(BinaryNinja::BinaryView* view);
     bool init();
-    void run(BinaryNinja::BinaryView* view);
+    void run();
 
    private:
     BinaryNinja::BinaryView* _view;
     std::vector<uint64_t> typeinfoClasses;  // Vector containing the address of each typeinfo class
+    InheritanceGraph inheritanceGraph;      // Class inheritance graph
+    TypeAccessor accessor;                  // Accessor for reading values from typed variables
 
-    Skald();
+    void parseVtable(uint64_t typeInfoPointer);
     void parseRTTI(unsigned long address, const std::string& symbolName);
+    void createVtableType(const std::string_view& className, uint64_t addr, uint32_t size);
+
     BinaryNinja::Ref<BinaryNinja::Type> defineClassType();
     BinaryNinja::Ref<BinaryNinja::Type> defineBaseClass();
     BinaryNinja::Ref<BinaryNinja::Type> defineVmiClassType(uint32_t base_count);

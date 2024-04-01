@@ -28,7 +28,9 @@ if (${FORCE_COLORED_OUTPUT})
 endif ()
 
 # Use whichever sources and plugin name you want
-add_library(skald SHARED skald.cpp)
+add_library(skald SHARED
+    skald.cpp inheritance_graph.cpp type_accessor.cpp
+)
 
 # Link with Binary Ninja
 target_link_libraries(skald PUBLIC binaryninjaapi)
