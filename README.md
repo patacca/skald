@@ -35,7 +35,7 @@ git submodule update --init
 ```
 
 > [!NOTE]
-> This will checkout the default version of the binary ninja API. If you need to compile against a different version of Binary Ninja follow [Update Binary Ninja API](update-binary-ninja-api)
+> This will checkout the default version of the binary ninja API. If you need to compile against a different version of Binary Ninja follow [Update Binary Ninja API](#update-binary-ninja-api)
 
 Next use cmake to build the project
 
