@@ -1,10 +1,28 @@
 # skald
-Binary Ninja plugin to recover RTTI vtables information from C++ binaries
+Binary Ninja plugin to recover RTTI and vtables information from C++ stripped binaries.
+
+> [!WARNING]
+> The plugin is still under development and is not ready for production yet. Use it with cautious.
+
+> [!IMPORTANT]
+> This plugin works only for binaries that adhere to the Itanium C++ ABI, like gcc or clang on linux
+
+## Features
+
+The plugin is still under heavy development and most of the features are not yet implemented.
+
+- [x] Recover RTTI
+- [ ] Recover vtables (partially supported)
+- [ ] Recover layout of objects and auto create struct
+- [ ] Add support for 32bit arch
+- [ ] Add support for ARM C++ ABI
 
 ## Dependencies
 
-- C++17 compatible compiler
+- C++20 compatible compiler
 - cmake >= 3.24
+- Binary Ninja >= 3.6.4762-dev, Build ID 27d9b06d
+- Binary Ninja C++ API >= [3ac99aa8](https://github.com/Vector35/binaryninja-api/commit/3ac99aa88c7019c8313304ef74dd5bbb468a74bc).
 
 ## How to build
 
@@ -16,17 +34,8 @@ cd skald
 git submodule update --init
 ```
 
-This will checkout the default version of the binary ninja API. Note that skald is compatible
-with Binary Ninja >= 3.6.4762-dev, Build ID 27d9b06d, that means that you must use the
-API past the commit [3ac99aa8](https://github.com/Vector35/binaryninja-api/commit/3ac99aa88c7019c8313304ef74dd5bbb468a74bc).
-
-If you need to compile against a different version of the API you will have to specifically
-pick the right commit:
-
-```commandline
-cd binaryninjapi
-git checkout <your-commit>
-```
+> [!NOTE]
+> This will checkout the default version of the binary ninja API. If you need to compile against a different version of Binary Ninja follow [Update Binary Ninja API](update-binary-ninja-api)
 
 Next use cmake to build the project
 
@@ -47,7 +56,7 @@ cd build
 ninja
 ```
 
-Anf finally to install it:
+And finally to install it:
 
 ```commandline
 cmake --install build
@@ -58,6 +67,28 @@ install it on the binary ninja plugin directory:
 
 ```commandline
 cmake --install build --prefix <path/to/binary/ninja/plugin>
+```
+
+### Cmake options
+
+here is a list of all the cmake options available:
+
+- `FORCE_COLORED_OUTPUT` to force the color usage during compilation
+
+### Update Binary Ninja API
+
+Binary Ninja C++ plugins need to be compiled against the specific API version that will be used.
+The version of the API that your BN is using is written in the file `/path/to/binary-ninja/api_REVISION.txt`
+
+```commandline
+awk 'match($0, /tree\/([a-z0-9]*)$/, m) {print m[1]}' api_REVISION.txt
+```
+
+Once you have the correct commit you have to checkout `binaryninjaapi`:
+
+```commandline
+cd binaryninjaapi
+git checkout <your-commit>
 ```
 
 ## How to use it
