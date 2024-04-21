@@ -1,13 +1,15 @@
 # Pick whatever version you have
 cmake_minimum_required(VERSION 3.24)
 
-# Name your plugin
 project(skald CXX)
-
 set(CMAKE_CXX_STANDARD 20)
 
 # Unless you are writing a plugin that needs Qt's UI, specify this
 set(HEADLESS 1)
+
+# Compiler flags
+set(CMAKE_CXX_FLAGS_DEBUG_INIT "-D_GLIBCXX_ASSERTIONS -fasynchronous-unwind-tables \
+    -fexceptions -g -Wall -Werror -pedantic -O0")
 
 find_path(
     BN_API_PATH
