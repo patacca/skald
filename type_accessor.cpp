@@ -59,24 +59,25 @@ std::any TypeAccessor::readValue(const BinaryNinja::Ref<BinaryNinja::Type> &type
     } else if (type->IsInteger() || type->IsPointer()) {
         uint64_t data;
         _view->Read(&data, address, type->GetWidth());
+        // Pointer are (erroneously) considered as signed integer. Correct it
         switch (type->GetWidth()) {
             case 1:
                 return static_cast<bool>(data);
             case 2:
-                if (type->IsSigned())
-                    return static_cast<int16_t>(data);
-                else
+                if (type->IsPointer() || !type->IsSigned())
                     return static_cast<uint16_t>(data);
+                else
+                    return static_cast<int16_t>(data);
             case 4:
-                if (type->IsSigned())
-                    return static_cast<int32_t>(data);
-                else
+                if (type->IsPointer() || !type->IsSigned())
                     return static_cast<uint32_t>(data);
-            case 8:
-                if (type->IsSigned())
-                    return static_cast<int64_t>(data);
                 else
+                    return static_cast<int32_t>(data);
+            case 8:
+                if (type->IsPointer() || !type->IsSigned())
                     return static_cast<uint64_t>(data);
+                else
+                    return static_cast<int64_t>(data);
             default:
                 return data;
         };
