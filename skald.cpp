@@ -4,7 +4,10 @@
 
 #include <any>
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <queue>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -44,12 +47,28 @@ void Skald::run() {
         }
     }
 
+    // Parse vtables
     BinaryNinja::LogDebug("Searching for vtables");
 
-    // Parse vtables
-    for (uint64_t rttiAddress : this->typeinfoClasses) {
-        // Find the data references that are not part of a type_info struct
-        for (uint64_t addr : _view->GetDataReferences(rttiAddress)) {
+    // Queue for BFS
+    std::queue<node_identifier_t> queue =
+        this->inheritanceGraph.getRoots() |
+        std::views::transform([](const Node& node) -> node_identifier_t { return node.id; }) |
+        std::ranges::to<std::queue>();
+
+    // Node parents' counter
+    std::unordered_map<node_identifier_t, size_t> counters;
+
+    // Each object that has a RTTI can potentially have a vtable, hence do a BFS on the class
+    // inheritance polytree. It is mandatory that the parents are accessed before the children
+    while (!queue.empty()) {
+        // Pop current node
+        const Node& node = this->inheritanceGraph.getNodeById(queue.front());
+        queue.pop();
+
+        // Find the vtable for the current node by looking at the data references that are not part
+        // of a type_info struct
+        for (uint64_t addr : _view->GetDataReferences(node.rttiAddress)) {
             DataVariable var;
             _view->GetDataVariableAtAddress(addr, var);
 
@@ -58,9 +77,17 @@ void Skald::run() {
 
             // Create vtable struct
             this->parseVtable(addr);
+        }
 
-            BinaryNinja::LogInfo("variabl from %p -> %s (%p)", rttiAddress,
-                                 var.type->GetString().c_str(), addr);
+        // Add the children to the queue
+        for (const auto& [childId, e_flags] : node.children) {
+            // On the first encounter initialize the parents' counter
+            if (!counters.contains(childId))
+                counters[childId] = this->inheritanceGraph.getNodeById(childId).parents.size();
+
+            --counters[childId];         // Reduce the number of remeaning parents by one
+            if (counters[childId] == 0)  // No parents left, it can be safely explored
+                queue.push(childId);
         }
     }
 
@@ -77,9 +104,12 @@ void Skald::parseVtable(uint64_t typeInfoPointer) {
     uint64_t vtableStart = typeInfoPointer + 8;
 
     try {
-        Node& node = this->inheritanceGraph.getNode(rttiAddr);
+        Node& node = this->inheritanceGraph.getNodeByAddr(rttiAddr);
 
-        if (node.isLeaf()) {
+        // if there are no children or there is only one and it is public non-virtual
+        if (node.isLeaf() ||
+            (node.children.size() == 1 && node.children[0].second & EdgeFlag::PUBLIC &&
+             !(node.children[0].second & EdgeFlag::VIRTUAL))) {
             // offset_to_top
             // RTTI pointer
             // vtable
@@ -117,8 +147,15 @@ void Skald::parseVtable(uint64_t typeInfoPointer) {
                                         fmt::format("vtable_{}", classNameDemangled), vtableStart);
             _view->DefineUserSymbol(symbol);
 
+            BinaryNinja::LogDebug("Found vtable at addr 0x%lx for RTTI at address 0x%lx (%s)",
+                                  vtableStart, rttiAddr, className.c_str());
+
         } else {
-            BinaryNinja::LogInfo("Node at address %p is not leaf", (void*)rttiAddr);
+            BinaryNinja::LogDebug("Found vtable at addr 0x%lx for RTTI at address 0x%lx",
+                                  vtableStart, rttiAddr);
+
+            BinaryNinja::LogInfo("Node at address %p has %lu children", (void*)rttiAddr,
+                                 node.children.size());
         }
     } catch (const std::invalid_argument& e) {
         BinaryNinja::LogWarn("Node at address %p is not present in graph", (void*)rttiAddr);
@@ -137,9 +174,9 @@ Ref<Type> Skald::createVtableType(const std::string_view& className, uint64_t st
         // Get function at current address
         auto functions = _view->GetAnalysisFunctionsForAddress(addr);
         if (functions.empty()) {  // No function defined. Create it
-            // Create a void (*foo)(void) function
-            BinaryNinja::LogInfo("No functions at addr %p", (void*)addr);
-            continue;
+            BinaryNinja::LogInfo("No functions at addr %p. Creating one for default platform",
+                                 (void*)addr);
+            functions.push_back(_view->CreateUserFunction(_view->GetDefaultPlatform(), addr));
         } else if (functions.size() > 1) {  // More than one function, pick the first one
             BinaryNinja::LogWarn(
                 "More than one function defined at address %p. Optimistically picking the first "
@@ -347,23 +384,30 @@ void Skald::parseRTTI(unsigned long address, const std::string& symbolName) {
 
     // Read content of RTTI
     auto rtti = this->accessor.readVar(address);
-    BinaryNinja::LogInfo("rtti var = %p", std::any_cast<int64_t>(rtti["__type_name"]));
+    auto className = this->accessor.readString(address, "__type_name");
+    BinaryNinja::LogDebug("Found RTTI at address 0x%lx named `%s`", address, className.c_str());
 
     // Add the node in the inheritance graph
-    if (!rtti.contains("__base_count")) {
-        this->inheritanceGraph.addNode(this->accessor.readString(address, "__type_name"), address,
-                                       {});
-    } else {
+    if (rtti.contains("__base_count")) {  // Contains >= 1 base class and they might be virtual
         uint32_t baseCount = std::any_cast<uint32_t>(rtti["__base_count"]);
-        std::vector<uint64_t> children(baseCount);
+        std::vector<edge_t> children(baseCount);
         auto baseInfoArray = std::any_cast<std::vector<std::any>>(rtti["__base_info"]);
         for (int i = 0; i < baseCount; ++i) {
             auto baseInfo =
                 std::any_cast<std::unordered_map<std::string, std::any>>(baseInfoArray[i]);
-            children[i] = std::any_cast<int64_t>(baseInfo["__base_type"]);
+            children[i] = {
+                std::any_cast<uint64_t>(baseInfo["__base_type"]),
+                static_cast<EdgeFlag>(std::any_cast<uint64_t>(baseInfo["__offset_flags"]) & 0xff)};
         }
-        this->inheritanceGraph.addNode(this->accessor.readString(address, "__type_name"), address,
-                                       children);
+        this->inheritanceGraph.addNode(className, address, children);
+
+    } else if (rtti.contains("__base_type")) {  // Contains only a single, public, non-virtual base
+        this->inheritanceGraph.addNode(
+            className, address,
+            {{{std::any_cast<uint64_t>(rtti["__base_type"]), EdgeFlag::PUBLIC}}});
+
+    } else {  // No base classes
+        this->inheritanceGraph.addNode(className, address, {});
     }
 }
 
