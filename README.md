@@ -19,7 +19,8 @@ The plugin is still under heavy development and most of the features are not yet
 
 ## Dependencies
 
-- C++20 compatible compiler
+- C++23 compatible compiler
+- libc++ standard library
 - cmake >= 3.24
 - Binary Ninja >= 3.6.4762-dev, Build ID 27d9b06d
 - Binary Ninja C++ API >= [3ac99aa8](https://github.com/Vector35/binaryninja-api/commit/3ac99aa88c7019c8313304ef74dd5bbb468a74bc).
