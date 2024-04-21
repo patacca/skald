@@ -39,7 +39,8 @@ class Skald {
 
     void parseVtable(uint64_t typeInfoPointer);
     void parseRTTI(unsigned long address, const std::string& symbolName);
-    void createVtableType(const std::string_view& className, uint64_t addr, uint32_t size);
+    BinaryNinja::Ref<BinaryNinja::Type> createVtableType(const std::string_view& className,
+                                                         uint64_t addr, uint32_t size);
 
     BinaryNinja::Ref<BinaryNinja::Type> defineClassType();
     BinaryNinja::Ref<BinaryNinja::Type> defineBaseClass();

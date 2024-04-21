@@ -86,6 +86,8 @@ void Skald::parseVtable(uint64_t typeInfoPointer) {
             uint64_t method = std::any_cast<uint64_t>(
                 this->accessor.readValue(Type::IntegerType(8, false, "uint64_t"), vtableStart));
             uint32_t vtableSize = 0;
+
+            // There is no reliable way of knowing how large a vtable is but to rely on heuristics
             while (_view->IsOffsetExecutable(method)) {
                 ++vtableSize;
 
@@ -104,7 +106,17 @@ void Skald::parseVtable(uint64_t typeInfoPointer) {
             auto it = className.begin();
             while (it != className.end() && *it >= '0' && *it <= '9') ++it;
             std::string_view classNameDemangled = std::string_view(it, className.end());
-            this->createVtableType(classNameDemangled, vtableStart, vtableSize);
+            auto type = this->createVtableType(classNameDemangled, vtableStart, vtableSize);
+
+            // Assign variable
+            _view->DefineUserDataVariable(vtableStart, type->WithConfidence(0xff));
+
+            // Create user symbol
+            auto* symbol =
+                new BinaryNinja::Symbol(BNSymbolType::DataSymbol,
+                                        fmt::format("vtable_{}", classNameDemangled), vtableStart);
+            _view->DefineUserSymbol(symbol);
+
         } else {
             BinaryNinja::LogInfo("Node at address %p is not leaf", (void*)rttiAddr);
         }
@@ -113,7 +125,8 @@ void Skald::parseVtable(uint64_t typeInfoPointer) {
     }
 }
 
-void Skald::createVtableType(const std::string_view& className, uint64_t startAddr, uint32_t size) {
+Ref<Type> Skald::createVtableType(const std::string_view& className, uint64_t startAddr,
+                                  uint32_t size) {
     StructureBuilder vtableBuilder;
     vtableBuilder.SetPropagateDataVariableReferences(true);  // same as __vtable or __data_var_ref
 
@@ -156,8 +169,10 @@ void Skald::createVtableType(const std::string_view& className, uint64_t startAd
 
     // Create the type `vtable_for_className`
     Ref<Structure> vtableStruct = vtableBuilder.Finalize();
-    _view->DefineUserType(QualifiedName(fmt::format("vtable_for_{}", className)),
-                          Type::StructureType(vtableStruct));
+    QualifiedName typeName = QualifiedName(fmt::format("vtable_{}_t", className));
+    _view->DefineUserType(typeName, Type::StructureType(vtableStruct));
+
+    return _view->GetTypeByName(typeName);
 }
 
 Ref<Type> Skald::defineClassType() {
