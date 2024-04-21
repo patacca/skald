@@ -7,8 +7,8 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
-#include <pair>
 
 #include "binaryninjaapi.h"
 #include "inheritance_graph.h"
@@ -139,9 +139,8 @@ void Skald::createVtableType(const std::string_view& className, uint64_t startAd
         auto retType = functionType->GetChildType();
         auto params = functionType->GetParameters();
         // Use a `void * this` for the time being
-        if (params.empty()) params.reserve(1);
-        params[0] = {"this",
-                     Type::PointerType(this->_view->GetDefaultArchitecture(), Type::VoidType())};
+        if (params.empty()) params.resize(1);
+        params[0] = {"this", Type::PointerType(_view->GetDefaultArchitecture(), Type::VoidType())};
 
         // Create the new function type
         auto newFunType = Type::FunctionType(
